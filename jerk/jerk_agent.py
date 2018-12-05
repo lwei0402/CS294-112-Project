@@ -8,37 +8,57 @@ import random
 
 import gym
 import numpy as np
-import retro
+import pandas as pd
+from retro import make
 
 EXPLOIT_BIAS = 0.25
-TOTAL_TIMESTEPS = int(1e6)
+TOTAL_TIMESTEPS = int(50000)
 
 def main():
     """Run JERK on the attached environment."""
-    env = retro.make(game='SonicTheHedgehog-Genesis', state='GreenHillZone.Act1', scenario='scenario.json')
+    env = make(game='SonicTheHedgehog-Genesis', state='GreenHillZone.Act1', scenario='scenario_exp.json')
     env = TrackedEnv(env)
     new_ep = True
     solutions = []
-    while True:
-        if new_ep:
-            if (solutions and
-                    random.random() < EXPLOIT_BIAS + env.total_steps_ever / TOTAL_TIMESTEPS):
-                solutions = sorted(solutions, key=lambda x: np.mean(x[0]))
-                best_pair = solutions[-1]
-                new_rew = exploit(env, best_pair[1])
-                best_pair[0].append(new_rew)
-                print('replayed best with reward %f' % new_rew)
-                continue
-            else:
-                env.reset()
-                new_ep = False
-        rew, new_ep = move(env, 100)
-        if not new_ep and rew <= 0:
-            print('backtracking due to negative reward: %f' % rew)
-            _, new_ep = move(env, 70, left=True)
-        if new_ep:
-            solutions.append(([max(env.reward_history)], env.best_sequence()))
-
+    env.reset()
+   
+    try:
+        env.render()
+        
+        while True:
+            if env.total_steps_ever >= TOTAL_TIMESTEPS:
+                break
+                
+            if new_ep:
+                if (solutions and
+                        random.random() < EXPLOIT_BIAS + env.total_steps_ever / TOTAL_TIMESTEPS):
+                    solutions = sorted(solutions, key=lambda x: np.mean(x[0]))
+                    best_pair = solutions[-1]
+                    new_rew = exploit(env, best_pair[1])
+                    best_pair[0].append(new_rew)
+                    print('replayed best with reward %f' % new_rew)
+                    continue
+                else:
+                    env.reset()
+                    new_ep = False
+            rew, new_ep = move(env, 100)
+            if not new_ep and rew <= 0:
+                #print('backtracking due to negative reward: %f' % rew)
+                _, new_ep = move(env, 70, left=True)
+            if new_ep:
+                solutions.append(([max(env.reward_history)], env.best_sequence()))
+    except KeyboardInterrupt:
+        pass
+    
+    print('Ending simulation')
+    env.render(close=True) # Needed to close render window without error
+    t = np.arange(env.total_steps_ever)
+    r = np.array(env.reward_history)
+    recorded_data = np.stack((t, r), axis=1)
+    df = pd.DataFrame(recorded_data)
+    print('writing to csv')
+    df.to_csv('rewards.csv', index=False, header=['timestep', 'reward'])
+    
 def move(env, num_steps, left=False, jump_prob=1.0 / 10.0, jump_repeat=4):
     """
     Move right or left for a certain number of steps,
@@ -48,7 +68,7 @@ def move(env, num_steps, left=False, jump_prob=1.0 / 10.0, jump_repeat=4):
     done = False
     steps_taken = 0
     jumping_steps_left = 0
-    while not done and steps_taken < num_steps:
+    while not done and steps_taken < num_steps and env.total_steps_ever < TOTAL_TIMESTEPS:
         action = np.zeros((12,), dtype=np.bool)
         action[6] = left
         action[7] = not left
@@ -114,10 +134,10 @@ class TrackedEnv(gym.Wrapper):
         return self.env.reset(**kwargs)
 
     def step(self, action):
-        self.render()
         self.total_steps_ever += 1
         self.action_history.append(action.copy())
         obs, rew, done, info = self.env.step(action)
+        self.env.render()
         self.total_reward += rew
         self.reward_history.append(self.total_reward)
         return obs, rew, done, info
