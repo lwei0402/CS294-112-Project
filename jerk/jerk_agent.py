@@ -12,7 +12,7 @@ import pandas as pd
 from retro import make
 
 EXPLOIT_BIAS = 0.25
-TOTAL_TIMESTEPS = int(50000)
+TOTAL_TIMESTEPS = int(10000)
 
 def main():
     """Run JERK on the attached environment."""
@@ -21,9 +21,10 @@ def main():
     new_ep = True
     solutions = []
     env.reset()
-   
+    
     try:
         env.render()
+        print('Running agent for {} timesteps'.format(TOTAL_TIMESTEPS))
         
         while True:
             if env.total_steps_ever >= TOTAL_TIMESTEPS:
@@ -50,14 +51,10 @@ def main():
     except KeyboardInterrupt:
         pass
     
-    print('Ending simulation')
+    print('Ending agent')
     env.render(close=True) # Needed to close render window without error
-    t = np.arange(env.total_steps_ever)
-    r = np.array(env.reward_history)
-    recorded_data = np.stack((t, r), axis=1)
-    df = pd.DataFrame(recorded_data)
-    print('writing to csv')
-    df.to_csv('rewards.csv', index=False, header=['timestep', 'reward'])
+    env.reset()
+    env.save('rewards.csv')
     
 def move(env, num_steps, left=False, jump_prob=1.0 / 10.0, jump_repeat=4):
     """
@@ -95,7 +92,7 @@ def exploit(env, sequence):
     env.reset()
     done = False
     idx = 0
-    while not done:
+    while not done and env.total_steps_ever < TOTAL_TIMESTEPS:
         if idx >= len(sequence):
             _, _, done, _ = env.step(np.zeros((12,), dtype='bool'))
         else:
@@ -114,6 +111,8 @@ class TrackedEnv(gym.Wrapper):
         self.reward_history = []
         self.total_reward = 0
         self.total_steps_ever = 0
+        self.complete_time_history = []
+        self.complete_reward_history = []
 
     def best_sequence(self):
         """
@@ -140,7 +139,25 @@ class TrackedEnv(gym.Wrapper):
         self.env.render()
         self.total_reward += rew
         self.reward_history.append(self.total_reward)
+        self.complete_time_history.append(self.total_steps_ever)
+        self.complete_reward_history.append(rew)
+        
+        if self.total_steps_ever % 1000 == 0:
+            print('timestep {}: reward = {}'.format(self.total_steps_ever, rew))
+            
         return obs, rew, done, info
-
+    
+    # save reward and timestep to csv    
+    def save(self, filename):
+        print('Saving to file:', filename)
+        print('total timesteps:', self.total_steps_ever)
+        print('history length:', len(self.complete_reward_history))
+        t = np.array(self.complete_time_history)
+        r = np.array(self.complete_reward_history)
+        recorded_data = np.stack((t, r), axis=1)
+        df = pd.DataFrame(recorded_data)
+        print('writing to csv')
+        df.to_csv(filename, index=False, header=['timestep', 'reward'])
+        
 if __name__ == '__main__':
     main()
