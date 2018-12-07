@@ -9,11 +9,8 @@ import random
 import gym
 import numpy as np
 
-import gym_remote.client as grc
-import gym_remote.exceptions as gre
-from retro_contest.local import make
+from retro import make
 
-import retro
 from stable_baselines import PPO2
 from stable_baselines.common.policies import CnnPolicy
 from stable_baselines.common.vec_env import DummyVecEnv
@@ -180,9 +177,5 @@ class TrackedEnv(gym.Wrapper):
         return obs, rew, done, info
 
 if __name__ == '__main__':
-    try:
-        main()
-    except gre.GymRemoteError as exc:
-        print('exception', exc)
-        print(exc.args)
-        traceback.print_exc()
+    main()
+
