@@ -93,7 +93,7 @@ def move(env, num_steps, model, left=False, jump_prob=1.0 / 10.0, jump_repeat=4)
     steps_taken = 0
     jumping_steps_left = 0
     action = np.zeros((12,), dtype=np.bool)
-    random_prob = 0.3
+    random_prob = 0.2
     use_model = random.random() > random_prob
     while not done and steps_taken < num_steps:
         if len(env.obs_history) > 0 and not left and use_model:
