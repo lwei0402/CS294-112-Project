@@ -33,6 +33,7 @@ def main():
             if new_ep:
                 if (solutions and
                         random.random() < EXPLOIT_BIAS + env.total_steps_ever / TOTAL_TIMESTEPS):
+                    print('Exploiting a previous solution')
                     solutions = sorted(solutions, key=lambda x: np.mean(x[0]))
                     best_pair = solutions[-1]
                     new_rew = exploit(env, best_pair[1])
@@ -42,11 +43,12 @@ def main():
                 else:
                     env.reset()
                     new_ep = False
-            rew, new_ep = move(env, 100)
+            rew, new_ep = move(env, 1000)
             if not new_ep and rew <= 0:
-                #print('backtracking due to negative reward: %f' % rew)
-                _, new_ep = move(env, 70, left=True)
+                print('backtracking due to negative reward: %f' % rew)
+                _, new_ep = move(env, 500, left=True)
             if new_ep:
+                print('Adding to solutions list')
                 solutions.append(([max(env.reward_history)], env.best_sequence()))
     except KeyboardInterrupt:
         pass
@@ -140,9 +142,11 @@ class TrackedEnv(gym.Wrapper):
         self.total_reward += rew
         self.reward_history.append(self.total_reward)
         self.complete_time_history.append(self.total_steps_ever)
+        #self.complete_reward_history.append(self.total_reward)
         self.complete_reward_history.append(rew)
         
-        if self.total_steps_ever % 1000 == 0:
+        if self.total_steps_ever % 100 == 0:
+            #print('timestep {}: reward = {}'.format(self.total_steps_ever, self.total_reward))
             print('timestep {}: reward = {}'.format(self.total_steps_ever, rew))
             
         return obs, rew, done, info
@@ -150,13 +154,10 @@ class TrackedEnv(gym.Wrapper):
     # save reward and timestep to csv    
     def save(self, filename):
         print('Saving to file:', filename)
-        print('total timesteps:', self.total_steps_ever)
-        print('history length:', len(self.complete_reward_history))
         t = np.array(self.complete_time_history)
         r = np.array(self.complete_reward_history)
         recorded_data = np.stack((t, r), axis=1)
         df = pd.DataFrame(recorded_data)
-        print('writing to csv')
         df.to_csv(filename, index=False, header=['timestep', 'reward'])
         
 if __name__ == '__main__':
