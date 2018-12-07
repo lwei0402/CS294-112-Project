@@ -12,18 +12,19 @@ import pandas as pd
 from retro import make
 
 EXPLOIT_BIAS = 0.25
-TOTAL_TIMESTEPS = int(10000)
+TOTAL_TIMESTEPS = int(100000)
+render = True
 
 def main():
     """Run JERK on the attached environment."""
-    env = make(game='SonicTheHedgehog-Genesis', state='GreenHillZone.Act1', scenario='scenario_exp.json')
+    env = make(game='SonicTheHedgehog-Genesis', state='GreenHillZone.Act1', scenario='scenario.json')
     env = TrackedEnv(env)
     new_ep = True
     solutions = []
     env.reset()
     
     try:
-        env.render()
+        if render: env.render()
         print('Running agent for {} timesteps'.format(TOTAL_TIMESTEPS))
         
         while True:
@@ -43,10 +44,10 @@ def main():
                 else:
                     env.reset()
                     new_ep = False
-            rew, new_ep = move(env, 1000)
+            rew, new_ep = move(env, 100)
             if not new_ep and rew <= 0:
                 print('backtracking due to negative reward: %f' % rew)
-                _, new_ep = move(env, 500, left=True)
+                _, new_ep = move(env, 50, left=True)
             if new_ep:
                 print('Adding to solutions list')
                 solutions.append(([max(env.reward_history)], env.best_sequence()))
@@ -54,9 +55,9 @@ def main():
         pass
     
     print('Ending agent')
-    env.render(close=True) # Needed to close render window without error
-    env.reset()
-    env.save('rewards.csv')
+    if render: env.render(close=True) # Needed to close render window without error
+    env.save('rewards_jerk.csv')
+    env.close()
     
 def move(env, num_steps, left=False, jump_prob=1.0 / 10.0, jump_repeat=4):
     """
@@ -138,16 +139,16 @@ class TrackedEnv(gym.Wrapper):
         self.total_steps_ever += 1
         self.action_history.append(action.copy())
         obs, rew, done, info = self.env.step(action)
-        self.env.render()
+        if render: self.env.render()
         self.total_reward += rew
         self.reward_history.append(self.total_reward)
         self.complete_time_history.append(self.total_steps_ever)
-        #self.complete_reward_history.append(self.total_reward)
-        self.complete_reward_history.append(rew)
+        self.complete_reward_history.append(self.total_reward)
+        #self.complete_reward_history.append(rew)
         
-        if self.total_steps_ever % 100 == 0:
-            #print('timestep {}: reward = {}'.format(self.total_steps_ever, self.total_reward))
-            print('timestep {}: reward = {}'.format(self.total_steps_ever, rew))
+        if self.total_steps_ever % 1000 == 0:
+            print('timestep {}: reward = {}'.format(self.total_steps_ever, self.total_reward))
+            #print('timestep {}: reward = {}'.format(self.total_steps_ever, rew))
             
         return obs, rew, done, info
     

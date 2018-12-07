@@ -11,81 +11,67 @@ import numpy as np
 import pandas as pd
 from retro import make
 
-from stable_baselines import PPO2
-from stable_baselines.common.policies import CnnPolicy
-from stable_baselines.common.vec_env import DummyVecEnv
-
-EXPLOIT_BIAS = 0.25
+EXPLOIT_BIAS = 0.5
 TOTAL_TIMESTEPS = int(100000)
 render = True
 
 def main():
     """Run JERK on the attached environment."""
-    
-    print('Loading environment')
-    
-    # env = grc.RemoteEnv('tmp/sock')
-    # env = retro.make(game='SonicTheHedgehog-Genesis', state = 'GreenHillZone.Act1',scenario = 'scenario.json')
-    env = make(game='SonicTheHedgehog-Genesis', state = 'GreenHillZone.Act1')
-    env.seed(0)
-    vec_env = DummyVecEnv([lambda: env])
+    env = make(game='SonicTheHedgehog-Genesis', state='GreenHillZone.Act1', scenario='scenario_exp.json')
     env = TrackedEnv(env)
-
-    print('Loading model')
-
-    model = PPO2(policy=CnnPolicy, 
-             env=vec_env,
-             n_steps=4096,
-             nminibatches=8,
-             lam=0.95,
-             gamma=0.99,
-             noptepochs=3,
-             ent_coef=0.01,
-             learning_rate=lambda _: 2e-4,
-             cliprange=lambda _: 0.2, 
-             verbose=1)
-    model = PPO2.load("PPO2_v1_1mil_0.2clip", env=vec_env)
-
-
-
     new_ep = True
-    solutions = [] #list of successful gameplay
+    solutions = []
     env.reset()
     
     try:
         if render: env.render()
         print('Running agent for {} timesteps'.format(TOTAL_TIMESTEPS))
+        
         while True:
             if env.total_steps_ever >= TOTAL_TIMESTEPS:
                 break
                 
             if new_ep:
+                
+                print('probability to exploit: {}'.format(EXPLOIT_BIAS + env.total_steps_ever / TOTAL_TIMESTEPS))
+                
                 if (solutions and
                         random.random() < EXPLOIT_BIAS + env.total_steps_ever / TOTAL_TIMESTEPS):
                     solutions = sorted(solutions, key=lambda x: np.mean(x[0]))
+                    
                     best_pair = solutions[-1]
                     new_rew = exploit(env, best_pair[1])
                     best_pair[0].append(new_rew)
-                    # print('replayed best with reward %f' % new_rew)
+                    print('replayed best with reward %f' % new_rew)
                     continue
                 else:
                     env.reset()
                     new_ep = False
-            rew, new_ep = move(env, 100, model = model)
+            rew, new_ep = move(env, 500)
             if not new_ep and rew <= 0:
                 print('backtracking due to negative reward: %f' % rew)
-                _, new_ep = move(env, 1, left=True, model = model)
+                _, new_ep = move(env, 100, left=True)
             if new_ep:
+                print('Adding to solutions list: reward = {}, length = {}'.format([max(env.reward_history)], len(env.best_sequence())))
                 solutions.append(([max(env.reward_history)], env.best_sequence()))
-                
     except KeyboardInterrupt:
         pass
-        
+    
     print('Ending agent')
     if render: env.render(close=True) # Needed to close render window without error
-    env.save('rewards_jerk_ppo2.csv')
-
-def random_next_step(self, left=False, jump_prob=1.0 / 10.0, jump_repeat=4, jumping_steps_left=0):
+    env.save('rewards_jerk.csv')
+    env.close()
+    
+def move(env, num_steps, left=False, jump_prob=1.0 / 100.0, jump_repeat=1):
+    """
+    Move right or left for a certain number of steps,
+    jumping periodically.
+    """
+    total_rew = 0.0
+    done = False
+    steps_taken = 0
+    jumping_steps_left = 0
+    while not done and steps_taken < num_steps and env.total_steps_ever < TOTAL_TIMESTEPS:
         action = np.zeros((12,), dtype=np.bool)
         action[6] = left
         action[7] = not left
@@ -96,44 +82,11 @@ def random_next_step(self, left=False, jump_prob=1.0 / 10.0, jump_repeat=4, jump
             if random.random() < jump_prob:
                 jumping_steps_left = jump_repeat - 1
                 action[0] = True
-
-        return action, jumping_steps_left
-
-def move(env, num_steps, model, left=False, jump_prob=1.0 / 10.0, jump_repeat=4):
-    """
-    Move right or left for a certain number of steps,
-    jumping periodically.
-    """
-    total_rew = 0.0
-    done = False
-    steps_taken = 0
-    jumping_steps_left = 0
-    action = np.zeros((12,), dtype=np.bool)
-    random_prob = 0.3
-    use_model = random.random() > random_prob
-    while not done and steps_taken < num_steps and env.total_steps_ever < TOTAL_TIMESTEPS:
-        if len(env.obs_history) > 0 and not left and use_model:
-                #print('sample', time.clock() - start_time)
-                ob = [env.obs_history[-1]]
-                #print('fetched observation', time.clock() - start_time)
-                action, _info = model.predict(ob)
-                # print(action)
-                #print('action', time.clock() - start_time)
-                #for action in actions[0]:
-                # _, rew, done, _ = env.step(actions[0][0])
-                obs, rew, done, _ = env.step(action[0])
-                #print('step', time.clock() - start_time)
-
-        else:
-            action, jumping_steps_left = random_next_step(left, jump_prob, jump_repeat, jumping_steps_left)
-            # print(action)
-            _, rew, done, _ = env.step(action)
-            
-         
+        _, rew, done, _ = env.step(action)
         total_rew += rew
         steps_taken += 1
         if done:
-            print(env.total_reward)
+            print('Done: reward = {}'.format(total_rew))
             break
     return total_rew, done
 
@@ -143,10 +96,11 @@ def exploit(env, sequence):
 
     Returns the final cumulative reward.
     """
+    print('Exploiting a solution with length {}'.format(len(sequence)))
     env.reset()
     done = False
     idx = 0
-    while not done:
+    while not done and env.total_steps_ever < TOTAL_TIMESTEPS:
         if idx >= len(sequence):
             _, _, done, _ = env.step(np.zeros((12,), dtype='bool'))
         else:
@@ -163,11 +117,11 @@ class TrackedEnv(gym.Wrapper):
         super(TrackedEnv, self).__init__(env)
         self.action_history = []
         self.reward_history = []
-        self.obs_history = []
         self.total_reward = 0
         self.total_steps_ever = 0
         self.complete_time_history = []
         self.complete_reward_history = []
+        self.complete_score_history = []
 
     def best_sequence(self):
         """
@@ -184,7 +138,6 @@ class TrackedEnv(gym.Wrapper):
     def reset(self, **kwargs):
         self.action_history = []
         self.reward_history = []
-        self.obs_history = []
         self.total_reward = 0
         return self.env.reset(**kwargs)
 
@@ -194,25 +147,28 @@ class TrackedEnv(gym.Wrapper):
         obs, rew, done, info = self.env.step(action)
         if render: self.env.render()
         self.total_reward += rew
+        #self.total_reward = rew
         self.reward_history.append(self.total_reward)
-        self.obs_history.append(obs)
         self.complete_time_history.append(self.total_steps_ever)
         self.complete_reward_history.append(self.total_reward)
+        self.complete_score_history.append(self.env.data.lookup_value('score') * 10)
+        #self.complete_reward_history.append(rew)
         
         if self.total_steps_ever % 1000 == 0:
-            print('timestep {}: reward = {}'.format(self.total_steps_ever, self.total_reward))
+            #print('timestep {}: reward = {}'.format(self.total_steps_ever, self.total_reward))
+            print('timestep {}: reward = {}'.format(self.total_steps_ever, rew))
             
         return obs, rew, done, info
-        
+    
     # save reward and timestep to csv    
     def save(self, filename):
         print('Saving to file:', filename)
         t = np.array(self.complete_time_history)
         r = np.array(self.complete_reward_history)
-        recorded_data = np.stack((t, r), axis=1)
+        x = np.array(self.complete_score_history)
+        recorded_data = np.stack((t, r, s), axis=1)
         df = pd.DataFrame(recorded_data)
-        df.to_csv(filename, index=False, header=['timestep', 'reward'])
-
+        df.to_csv(filename, index=False, header=['timestep', 'reward', 'score'])
+        
 if __name__ == '__main__':
     main()
-

@@ -7,7 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 def main():
-    df = pd.read_csv('rewards_jerk_original.csv')
+    df = pd.read_csv('rewards_jerk_ppo2.csv')
     
     plt.figure()
     plt.title('Reward over time')
@@ -16,12 +16,7 @@ def main():
     plt.grid(True)
     plt.axvline(color='k')
     plt.axhline(color='k')
-    plt.plot(df['timestep'], df['reward'], color='r', label='reward')
-    try:
-        plt.plot(df['timestep'], df['score'], color='g', label='score')
-    except:
-        pass
-    plt.legend()
+    plt.plot(df['timestep'], df['reward'], color='r')
     plt.tight_layout()
     plt.show()
     
