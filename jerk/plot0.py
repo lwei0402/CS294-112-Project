@@ -29,5 +29,13 @@ def main():
     plt.tight_layout()
     plt.show()
     
+    plt.figure()
+    plt.title('Trajectory')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.grid(True)
+    plt.plot(df['x'], df['y'], color='b')
+    plt.show()
+    
 if __name__ == '__main__':
     main()

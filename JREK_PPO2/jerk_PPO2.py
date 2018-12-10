@@ -9,15 +9,16 @@ import random
 import gym
 import numpy as np
 import pandas as pd
-from retro import make
+#from retro import make
+from retro_contest.local import make
 
 from stable_baselines import PPO2
 from stable_baselines.common.policies import CnnPolicy
 from stable_baselines.common.vec_env import DummyVecEnv
 
 EXPLOIT_BIAS = 0.25
-TOTAL_TIMESTEPS = int(100000)
-render = True
+TOTAL_TIMESTEPS = int(300000)
+render = False
 
 def main():
     """Run JERK on the attached environment."""
@@ -25,7 +26,7 @@ def main():
     print('Loading environment')
     
     # env = grc.RemoteEnv('tmp/sock')
-    # env = retro.make(game='SonicTheHedgehog-Genesis', state = 'GreenHillZone.Act1',scenario = 'scenario.json')
+    # env = make(game='SonicTheHedgehog-Genesis', state = 'GreenHillZone.Act1',scenario = 'scenario.json')
     env = make(game='SonicTheHedgehog-Genesis', state = 'GreenHillZone.Act1')
     env.seed(0)
     vec_env = DummyVecEnv([lambda: env])
@@ -74,7 +75,7 @@ def main():
             rew, new_ep = move(env, 100, model = model)
             if not new_ep and rew <= 0:
                 print('backtracking due to negative reward: %f' % rew)
-                _, new_ep = move(env, 1, left=True, model = model)
+                _, new_ep = move(env, 50, left=True, model = model)
             if new_ep:
                 solutions.append(([max(env.reward_history)], env.best_sequence()))
                 
@@ -85,7 +86,7 @@ def main():
     if render: env.render(close=True) # Needed to close render window without error
     env.save('rewards_jerk_ppo2.csv')
 
-def random_next_step(self, left=False, jump_prob=1.0 / 10.0, jump_repeat=4, jumping_steps_left=0):
+def random_next_step(left=False, jump_prob=1.0 / 10.0, jump_repeat=4, jumping_steps_left=0):
         action = np.zeros((12,), dtype=np.bool)
         action[6] = left
         action[7] = not left
@@ -104,6 +105,7 @@ def move(env, num_steps, model, left=False, jump_prob=1.0 / 10.0, jump_repeat=4)
     Move right or left for a certain number of steps,
     jumping periodically.
     """
+    
     total_rew = 0.0
     done = False
     steps_taken = 0
@@ -117,7 +119,8 @@ def move(env, num_steps, model, left=False, jump_prob=1.0 / 10.0, jump_repeat=4)
                 ob = [env.obs_history[-1]]
                 #print('fetched observation', time.clock() - start_time)
                 action, _info = model.predict(ob)
-                # print(action)
+                #print('model predicted action: left = ', action[0][6])
+                #print('action:'action)
                 #print('action', time.clock() - start_time)
                 #for action in actions[0]:
                 # _, rew, done, _ = env.step(actions[0][0])
@@ -133,7 +136,6 @@ def move(env, num_steps, model, left=False, jump_prob=1.0 / 10.0, jump_repeat=4)
         total_rew += rew
         steps_taken += 1
         if done:
-            print(env.total_reward)
             break
     return total_rew, done
 
@@ -168,6 +170,7 @@ class TrackedEnv(gym.Wrapper):
         self.total_steps_ever = 0
         self.complete_time_history = []
         self.complete_reward_history = []
+        
 
     def best_sequence(self):
         """
@@ -189,6 +192,7 @@ class TrackedEnv(gym.Wrapper):
         return self.env.reset(**kwargs)
 
     def step(self, action):
+        #print('Stepping: left = {}'.format(action[6]))
         self.total_steps_ever += 1
         self.action_history.append(action.copy())
         obs, rew, done, info = self.env.step(action)

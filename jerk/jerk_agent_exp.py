@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from retro import make
 
-EXPLOIT_BIAS = 0.5
+EXPLOIT_BIAS = 0.45
 TOTAL_TIMESTEPS = int(100000)
 render = True
 
@@ -26,7 +26,7 @@ def main():
     try:
         if render: env.render()
         print('Running agent for {} timesteps'.format(TOTAL_TIMESTEPS))
-        
+        rew_prev = 0
         while True:
             if env.total_steps_ever >= TOTAL_TIMESTEPS:
                 break
@@ -47,10 +47,17 @@ def main():
                 else:
                     env.reset()
                     new_ep = False
-            rew, new_ep = move(env, 500)
-            if not new_ep and rew <= 0:
-                print('backtracking due to negative reward: %f' % rew)
-                _, new_ep = move(env, 100, left=True)
+            print('about to move')
+            print('rew_prev', rew_prev)
+            rew, new_ep = move(env, 1000)
+            print('rew', rew)
+            rew_delta = rew - rew_prev
+            rew_prev = rew
+            print('rew_delta', rew_delta)
+            print()
+            if not new_ep and rew_delta <= 0:
+                print('backtracking due to negative reward: %f' % rew_delta)
+                _, new_ep = move(env, 50, left=True)
             if new_ep:
                 print('Adding to solutions list: reward = {}, length = {}'.format([max(env.reward_history)], len(env.best_sequence())))
                 solutions.append(([max(env.reward_history)], env.best_sequence()))
@@ -62,7 +69,7 @@ def main():
     env.save('rewards_jerk.csv')
     env.close()
     
-def move(env, num_steps, left=False, jump_prob=1.0 / 100.0, jump_repeat=1):
+def move(env, num_steps, left=False, jump_prob=1.0 / 40.0, jump_repeat=4):
     """
     Move right or left for a certain number of steps,
     jumping periodically.
@@ -83,11 +90,12 @@ def move(env, num_steps, left=False, jump_prob=1.0 / 100.0, jump_repeat=1):
                 jumping_steps_left = jump_repeat - 1
                 action[0] = True
         _, rew, done, _ = env.step(action)
-        total_rew += rew
+        #total_rew += rew
+        total_rew = rew
         steps_taken += 1
         if done:
-            print('Done: reward = {}'.format(total_rew))
             break
+
     return total_rew, done
 
 def exploit(env, sequence):
@@ -122,6 +130,10 @@ class TrackedEnv(gym.Wrapper):
         self.complete_time_history = []
         self.complete_reward_history = []
         self.complete_score_history = []
+        self.complete_x_history = []
+        self.complete_rings_history = []
+        self.complete_screen_x_history = []
+        self.complete_y_history = []
 
     def best_sequence(self):
         """
@@ -146,13 +158,16 @@ class TrackedEnv(gym.Wrapper):
         self.action_history.append(action.copy())
         obs, rew, done, info = self.env.step(action)
         if render: self.env.render()
-        self.total_reward += rew
-        #self.total_reward = rew
+        #self.total_reward += rew
+        self.total_reward = rew
         self.reward_history.append(self.total_reward)
         self.complete_time_history.append(self.total_steps_ever)
         self.complete_reward_history.append(self.total_reward)
-        self.complete_score_history.append(self.env.data.lookup_value('score') * 10)
-        #self.complete_reward_history.append(rew)
+        self.complete_score_history.append(self.env.data.lookup_value('score'))
+        self.complete_x_history.append(self.env.data.lookup_value('x'))
+        self.complete_rings_history.append(self.env.data.lookup_value('rings'))
+        self.complete_screen_x_history.append(self.env.data.lookup_value('screen_x'))
+        self.complete_y_history.append(self.env.data.lookup_value('y'))
         
         if self.total_steps_ever % 1000 == 0:
             #print('timestep {}: reward = {}'.format(self.total_steps_ever, self.total_reward))
@@ -165,10 +180,15 @@ class TrackedEnv(gym.Wrapper):
         print('Saving to file:', filename)
         t = np.array(self.complete_time_history)
         r = np.array(self.complete_reward_history)
-        x = np.array(self.complete_score_history)
-        recorded_data = np.stack((t, r, s), axis=1)
+        s = np.array(self.complete_score_history)
+        x = np.array(self.complete_x_history)
+        rings = np.array(self.complete_rings_history)
+        sx = np.array(self.complete_screen_x_history)
+        y = np.array(self.complete_y_history)
+        
+        recorded_data = np.stack((t, r, s, x, y, rings, sx), axis=1)
         df = pd.DataFrame(recorded_data)
-        df.to_csv(filename, index=False, header=['timestep', 'reward', 'score'])
+        df.to_csv(filename, index=False, header=['timestep', 'reward', 'score', 'x', 'rings', 'screen_x', 'y'])
         
 if __name__ == '__main__':
     main()
