@@ -57,7 +57,7 @@ model = PPO2(policy=CnnPolicy,
              cliprange=lambda _: 0.2, 
 			 verbose=1)
 
-model = PPO2.load("PPO2_v1_1mil_0.2clip", env=env)
+model = PPO2.load("PPO2_v1_1mil_0.1clip", env=env)
 iteration = 0
 timestep = 0
 obs = env.reset()
