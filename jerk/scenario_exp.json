@@ -9,7 +9,7 @@
     },
     "reward": {
         "variables": {
-            "x": {
+            "screen_x": {
                 "reward": 1.0,
                 "measurement": "absolute"
             },

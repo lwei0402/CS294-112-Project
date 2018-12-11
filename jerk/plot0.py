@@ -24,17 +24,28 @@ def main():
     plt.plot(df['timestep'], df['x'] * 1, color='b', label='x')
     plt.plot(df['timestep'], df['rings'] * 100, color='m', label='rings')
     plt.plot(df['timestep'], df['screen_x'] * 1, color='y', label='screen_x')
-
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    
+    plt.figure()
+    plt.title('Trajectory data')
+    plt.xlabel('t')
+    plt.grid(True)
+    plt.plot(df['timestep'], df['x'], color='b', label='x')
+    plt.plot(df['timestep'], df['screen_x'], color='c', label='screen_x')
+    plt.plot(df['timestep'], df['y'], color='r', label='y')
+    plt.plot(df['timestep'], df['screen_y'], color='m', label='screen_y')
+    plt.legend()
+    plt.tight_layout()
     
     plt.figure()
     plt.title('Trajectory')
-    plt.xlabel('x')
-    plt.ylabel('y')
+    plt.xlabel('t')
     plt.grid(True)
-    plt.plot(df['x'], df['y'], color='b')
+    plt.plot(df['x'], df['y'][0] - df['y'], color='b')
+    plt.legend()
+    plt.tight_layout()
+    
     plt.show()
     
 if __name__ == '__main__':

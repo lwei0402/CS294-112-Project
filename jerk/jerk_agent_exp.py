@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from retro import make
 
-EXPLOIT_BIAS = 0.45
+EXPLOIT_BIAS = 0.25
 TOTAL_TIMESTEPS = int(100000)
 render = True
 
@@ -134,6 +134,7 @@ class TrackedEnv(gym.Wrapper):
         self.complete_rings_history = []
         self.complete_screen_x_history = []
         self.complete_y_history = []
+        self.complete_screen_y_history = []
 
     def best_sequence(self):
         """
@@ -168,6 +169,7 @@ class TrackedEnv(gym.Wrapper):
         self.complete_rings_history.append(self.env.data.lookup_value('rings'))
         self.complete_screen_x_history.append(self.env.data.lookup_value('screen_x'))
         self.complete_y_history.append(self.env.data.lookup_value('y'))
+        self.complete_screen_y_history.append(self.env.data.lookup_value('screen_y'))
         
         if self.total_steps_ever % 1000 == 0:
             #print('timestep {}: reward = {}'.format(self.total_steps_ever, self.total_reward))
@@ -185,10 +187,11 @@ class TrackedEnv(gym.Wrapper):
         rings = np.array(self.complete_rings_history)
         sx = np.array(self.complete_screen_x_history)
         y = np.array(self.complete_y_history)
+        sy = np.array(self.complete_screen_y_history)
         
-        recorded_data = np.stack((t, r, s, x, y, rings, sx), axis=1)
+        recorded_data = np.stack((t, r, s, x, rings, sx, y, sy), axis=1)
         df = pd.DataFrame(recorded_data)
-        df.to_csv(filename, index=False, header=['timestep', 'reward', 'score', 'x', 'rings', 'screen_x', 'y'])
+        df.to_csv(filename, index=False, header=['timestep', 'reward', 'score', 'x', 'rings', 'screen_x', 'y', 'screen_y'])
         
 if __name__ == '__main__':
     main()
